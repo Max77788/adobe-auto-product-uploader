@@ -303,16 +303,26 @@ async function fetchWithRetry(url, maxRetries = 3, delayMs = 2000) {
     }
 }
 
-async function convertWebpBufferToJpg(webpBuffer) {
+async function convertAndUpscaleWebpToJpg(webpBuffer) {
     try {
+        // Step 1: Get metadata to calculate new dimensions
+        const metadata = await sharp(webpBuffer).metadata();
+        const newWidth = metadata.width * 5;
+        const newHeight = metadata.height * 5;
+
+        // Step 2: Resize and convert to JPEG
         const jpgBuffer = await sharp(webpBuffer)
+            .resize(newWidth, newHeight, {
+                fit: 'inside', // Preserves aspect ratio
+                kernel: sharp.kernel.lanczos3, // High-quality upscale
+            })
             .toFormat('jpeg')
             .toBuffer();
 
-        console.log('Conversion successful. JPEG buffer size:', jpgBuffer.length);
+        console.log('Upscaling and conversion successful. JPEG buffer size:', jpgBuffer.length);
         return jpgBuffer;
     } catch (error) {
-        console.error('Error converting image buffer:', error);
+        console.error('Error converting and upscaling image buffer:', error);
         throw error;
     }
 }
@@ -774,7 +784,7 @@ async function processProduct(req) {
                             console.log("Size Option Example:  ", sizeOption);
                             const custom_attributes = [];
 
-                            currentQuantityPrice = Number((Math.round(currentQuantityPrice * price_multiplier * Number(qtyOption.label) * 100) / 100).toFixed(2));
+                            currentQuantityPrice = Number((Math.round(currentQuantityPrice * Number(qtyOption.label) * 100) / 100).toFixed(2));
 
                             if (sizeOption.value) {
                                 custom_attributes.push({ attribute_code: size_attribute_label, value: sizeOption.value });
