@@ -7,6 +7,7 @@ const { fetchProduct,
     addNewSingleOptionToTheAttribute,
     findAttributeOptions,
     processProduct,
+    addImageToProduct,
     cleanLabel
  } = require('./functions.js');
 const { v4: uuidv4 } = require('uuid');
@@ -468,6 +469,49 @@ app.post('/process-product-new', (req, res) => {
 
     // Fire off the background processing function without awaiting its result
     processProduct(req);
+
+    // Immediately return the response to the client
+    res.json({
+        success: true,
+        message: 'Attribute options processing initiated in background.'
+    });
+});
+
+app.post('/add-images', async (req, res) => {
+    // Destructure the new payload keys from req.body
+    let {
+        color_attribute_id,
+        color_attribute_label,
+        size_attribute_id,
+        size_attribute_label,
+        material_attribute_id,
+        material_attribute_label,
+        shape_attribute_id,
+        shape_attribute_label,
+        quantity_attribute_id,
+        quantity_attribute_label,
+        printpronto_config_product_id,
+        printpronto_config_product_sku,
+        esp_product_id,
+        price_multiplier,
+        attribute_set_id
+    } = req.body;
+
+    const product = await fetchProduct(esp_product_id);
+
+    // Add thumbnail picture to the product
+    if (product.ImageUrl) {
+        await addImageToProduct(product.ImageUrl, product.Name, 1, printpronto_config_product_sku, true)
+    }
+    // Add non-thumbnail picture to the product (if there are)
+    if (product.Images && product.Images.length > 1) {
+        console.log("[DEBUG] Adding additional images to the product.");
+
+        for (const [index, imageUrl] of product.Images.slice(1).entries()) {
+            await addImageToProduct(imageUrl, product.Name, index + 1, printpronto_config_product_sku, false)
+        }
+    }
+    console.log("[DEBUG] All images added to the product.");
 
     // Immediately return the response to the client
     res.json({

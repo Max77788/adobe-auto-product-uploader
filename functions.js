@@ -2,6 +2,8 @@ const dotenv = require('dotenv');
 dotenv.config();
 const { v4: uuidv4 } = require('uuid');
 
+const sharp = require('sharp');
+
 // Replace 'yourProductIdHere' with the actual product ID.
 const productId = '550666600';
 
@@ -207,27 +209,153 @@ function cleanLabel(label) {
 }
 
 
-async function addImageToProduct(imageUrl, productName, isThumbnail = false) {
-    
-    const image_link = `https://api.asicentral.com/v1/${imageUrl}`
-    
-    const payload_thumbnail = {
-        "entry": {
-            "media_type": "image",
-            "label": `${productName.replace(" ", "_")}-image-${uuidv4().substring(0, 4)}`,
-            "position" : 1,
-            "disabled": false,
-            "types": ["thumbnail", "image", "small_image"],
-            "file": "",
-            "content": {
-                "base64_encoded_data": "",
-                "type": "image/jpeg",
-                "name": ""
+async function fetchWithRetry(url, maxRetries = 3, delayMs = 2000) {
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        try {
+            console.log(`[DEBUG] Attempt ${attempt} to fetch URL: ${url}`);
+            const response = await fetch(url);
+            return response;
+        } catch (error) {
+            // Check if this is a network-related error like ECONNRESET
+            console.error(`[ERROR] Fetch attempt ${attempt} failed with error: ${error.message}`);
+            if (attempt < maxRetries) {
+                console.log(`[DEBUG] Retrying in ${delayMs}ms...`);
+                await new Promise(resolve => setTimeout(resolve, delayMs));
+            } else {
+                console.error(`[ERROR] All ${maxRetries} attempts failed.`);
+                throw error;
             }
         }
     }
 }
 
+async function convertWebpBufferToJpg(webpBuffer) {
+    try {
+        const jpgBuffer = await sharp(webpBuffer)
+            .toFormat('jpeg')
+            .toBuffer();
+
+        console.log('Conversion successful. JPEG buffer size:', jpgBuffer.length);
+        return jpgBuffer;
+    } catch (error) {
+        console.error('Error converting image buffer:', error);
+        throw error;
+    }
+}
+
+
+async function addImageToProduct(imageUrl, productName, positionNumber, config_product_sku, isThumbnail = false) {
+    // Construct the full URL for the image.
+    const fullImageUrl = `https://api.asicentral.com/v1/${imageUrl}`;
+    console.log("Fetching image from:", fullImageUrl);
+
+    try {
+        // Use the fetchWithRetry helper to attempt fetching the image.
+        const response_init = await fetchWithRetry(fullImageUrl, 10, 2000);
+        
+        
+        console.log("Fetch complete. Full response:", response_init);
+
+        console.log("URL: ", response_init.url)
+
+        const directImageUrl = response_init.url.split("?")[0];
+        
+        const response = await fetchWithRetry(directImageUrl, 10, 2000);
+
+        if (!response.ok) {
+            throw new Error(`Failed to fetch image. Status: ${response.status}`);
+        }
+
+        console.log("Converting response to array buffer...");
+        const arrayBuffer = await response.arrayBuffer();
+        console.log("ArrayBuffer conversion complete.");
+
+        // Create a Node.js Buffer from the ArrayBuffer.
+        const webpBuffer = Buffer.from(arrayBuffer);
+        // console.log("Buffer created. Buffer size (bytes):", imageBuffer.length);
+
+        const jpgBuffer = await convertWebpBufferToJpg(webpBuffer);
+        
+        // Convert the Buffer to a base64 string.
+        const base64data = jpgBuffer.toString('base64');
+        console.log("Successfully converted image to base64");
+
+        // First, try to get the file name from the Content-Disposition header.
+        const contentDisposition = response.headers.get('content-disposition');
+        let filename;
+        if (contentDisposition && contentDisposition.indexOf('filename=') !== -1) {
+            const filenameRegex = /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/;
+            const matches = filenameRegex.exec(contentDisposition);
+            if (matches != null && matches[1]) {
+                filename = matches[1].replace(/['"]/g, '');
+            }
+        }
+
+        // Fallback: if no filename in header, derive from the final URL.
+        if (!filename) {
+            filename = path.basename(url.parse(response.url).pathname);
+        }
+
+        filename = filename.split(".")[0] + ".jpg"; // Ensure the filename ends with .jpg
+        console.log("Determined filename: ", filename);
+
+        // Construct the payload with the base64 data.
+        const payload_thumbnail = {
+            "entry": {
+                "media_type": "image",
+                "label": `${productName.replace(" ", "_")}-image-${uuidv4().substring(0, 4)}-THUMBANAIL`,
+                "position": 1,
+                "disabled": false,
+                "types": ["thumbnail", "image", "small_image"],
+                "file": filename,
+                "content": {
+                    "base64_encoded_data": base64data,
+                    "type": "image/jpeg",
+                    "name": filename
+                }
+            }
+        };
+
+        // Construct the payload with the base64 data.
+        const payload_non_thumbnail = {
+            "entry": {
+                "media_type": "image",
+                "label": `${productName.replace(" ", "_")}-image-${uuidv4().substring(0, 4)}`,
+                "position": positionNumber,
+                "disabled": false,
+                "types": ["image", "small_image"],
+                "file": filename,
+                "content": {
+                    "base64_encoded_data": base64data,
+                    "type": "image/jpeg",
+                    "name": filename
+                }
+            }
+        };
+
+        const payload = isThumbnail ? payload_thumbnail : payload_non_thumbnail;
+
+        console.log("Constructed payload:", payload_thumbnail);
+        const response_post_image = await fetch(`${process.env.PRINTPRONTO_API_BASE_URL}/rest/default/V1/products/${config_product_sku}/media`, {
+            method: 'POST',
+            headers: {
+                "Authorization": `Bearer ${process.env.PRINTPRONTO_API_TOKEN}`,
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify(payload)
+        });
+
+        const response_json = await response_post_image.json();
+        
+        console.log("Image upload response status:", response_json);
+
+        return response_json;
+
+    } catch (error) {
+        console.error("Error in addImageToProduct:", error);
+        throw error;
+    }
+}
 
 async function processProduct(req) {
     try {
@@ -594,8 +722,23 @@ async function processProduct(req) {
                 }
             }
         }
-        console.log("[DEBUG] Final result object:", finalResult);
-        console.log("[DEBUG] processProduct function completed.");
+        // console.log("[DEBUG] Final result object:", finalResult);
+        // console.log("[DEBUG] processProduct function completed.");
+
+        
+        // Add thumbnail picture to the product
+        if (product.ImageUrl) {
+            await addImageToProduct(product.ImageUrl, product.Name, 1, printpronto_config_product_sku, true)
+        }
+        // Add non-thumbnail picture to the product (if there are)
+        if (product.Images && product.Images.length > 1) {
+            console.log("[DEBUG] Adding additional images to the product.");
+        
+            for (const [index, imageUrl] of product.Images.slice(1).entries()) {
+                await addImageToProduct(imageUrl, product.Name, index + 1, printpronto_config_product_sku, false)
+            }
+        }
+        console.log("[DEBUG] All images added to the product.");
     } catch (error) {
         console.error("[ERROR] Error processing attribute options:", error);
     }
@@ -614,5 +757,6 @@ module.exports = {
     createSimpleProduct,
     assignSimpleProductToConfigurable,
     cleanLabel,
+    addImageToProduct,
     processProduct
 };
