@@ -112,27 +112,70 @@ const PRINTPRONTO_API_BASE_URL = "https://printpronto.com/rest/default/V1";
     }
 
 
- async function setOptionOfConfigProductAttribute(attribute_id, attribute_label, option_value, config_product_id, position=0) {
-    
+async function setOptionOfConfigProductAttribute(attribute_id, attribute_label, option_value, config_product_id, config_product_sku, position = 0) {
+    console.log("[DEBUG] Function called: setOptionOfConfigProductAttribute");
+    console.log("[DEBUG] Parameters received:");
+    console.log("  - attribute_id:", attribute_id);
+    console.log("  - attribute_label:", attribute_label);
+    console.log("  - option_value:", option_value);
+    console.log("  - config_product_id:", config_product_id);
+    console.log("  - config_product_sku:", config_product_sku);
+    console.log("  - position:", position);
+
     const newOption = {
         "option": {
-            "attribute_id": `${attribute_id}`,
-            "label": `${attribute_label}`,
+            "attribute_id": attribute_id,
+            "label": attribute_label,
             "position": position,
             "values": [
                 {
-                    "value_index": `${option_value}`,
+                    "value_index": Number(option_value.value),
                 }
             ],
-            "product_id": `${config_product_id}`,
+            "product_id": Number(config_product_id),
         }
+    };
+
+    console.log("[DEBUG] Constructed newOption payload:");
+    console.log(JSON.stringify(newOption, null, 2));
+
+    const url = `${PRINTPRONTO_API_BASE_URL}/configurable-products/${config_product_sku}/options`;
+    console.log("[DEBUG] API URL:", url);
+
+    const headers = {
+        "Authorization": `Bearer ${process.env.PRINTPRONTO_API_TOKEN}`,
+        "Content-Type": "application/json"
+    };
+    console.log("[DEBUG] Request headers:", headers);
+
+    try {
+        console.log("[DEBUG] Sending POST request to Magento API...");
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: headers,
+            body: JSON.stringify(newOption)
+        });
+
+        console.log("[DEBUG] Response received");
+        console.log("  - Status:", response.status);
+        console.log("  - Status Text:", response.statusText);
+
+        if (!response.ok) {
+            const errorBody = await response.text();
+            console.error("[ERROR] Failed to set option. Response body:", errorBody);
+        } else {
+            const data = await response.json();
+            console.log("[SUCCESS] Option set successfully. Response data:", data);
+        }
+    } catch (error) {
+        console.error("[EXCEPTION] An error occurred while setting the option:", error);
     }
-};
+}
 
 async function createSimpleProduct(config_product_id, config_product_name, attribute_set_id, quantity, quantity_price, custom_attributes) {
     const uniqueId = uuidv4().substring(0, 4);
     
-    const productSku = `${config_product_id}-${config_product_name.replace(/"/g, "").replace(/ /g, "")}-${uniqueId}`;
+    const productSku = `${config_product_id}-${config_product_name.replace(/"/g, "").replace(/ /g, "").replace(":", "-")}-${uniqueId}`;
 
     const product = {
         product: {
@@ -161,24 +204,55 @@ async function createSimpleProduct(config_product_id, config_product_name, attri
         },
         body: JSON.stringify(product)
     });
+
+    console.log("Response from creating simple product:", response.status, response.statusText);
     
     // Optionally, you might want to handle and return the response.
     return productSku;
 }
 
 async function assignSimpleProductToConfigurable(child_product_sku, config_product_sku) {
+    console.log("Function called: assignSimpleProductToConfigurable");
+    console.log("Child Product SKU:", child_product_sku);
+    console.log("Configurable Product SKU:", config_product_sku);
+
     const payload = {
         "childSku": child_product_sku,
+    };
+    console.log("Payload constructed:", payload);
+
+    const url = `${process.env.PRINTPRONTO_API_BASE_URL}/rest/default/V1/configurable-products/${config_product_sku}/child`;
+    console.log("API URL:", url);
+
+    const headers = {
+        "Authorization": `Bearer ${process.env.PRINTPRONTO_API_TOKEN}`,
+        "Content-Type": "application/json"
+    };
+    console.log("Request headers:", headers);
+
+    try {
+        console.log("Sending POST request...");
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: headers,
+            body: JSON.stringify(payload)
+        });
+
+        console.log("Response received");
+        console.log("Response status:", response.status);
+        console.log("Response status text:", response.statusText);
+
+        if (!response.ok) {
+            const errorBody = await response.text();
+            console.error("Error response body:", errorBody);
+        } else {
+            const data = await response.json();
+            console.log("Success response data:", data);
+        }
+
+    } catch (error) {
+        console.error("Error while assigning simple product to configurable:", error);
     }
-    
-    const response = await fetch(`${process.env.PRINTPRONTO_API_BASE_URL}/rest/default/V1/configurable-products/${config_product_sku}/child`, {
-        method: 'POST',
-        headers: {
-            "Authorization": `Bearer ${process.env.PRINTPRONTO_API_TOKEN}`,
-            "Content-Type": "application/json"
-        },
-        body: JSON.stringify(payload)
-    });
 }
 
 // Function to fetch attribute options
@@ -567,7 +641,7 @@ async function processProduct(req) {
             console.log(`[DEBUG] Setting quantity option: ${option_value ? option_value.label : 'not found'} for quantity ${obj.quantity}`);
             await setOptionOfConfigProductAttribute(
                 quantity_attribute_id, quantity_attribute_label,
-                option_value, printpronto_config_product_id, 5
+                option_value, printpronto_config_product_id, printpronto_config_product_sku, 5
             );
             usedQuantityOptions.push({
                 label: option_value.label,
@@ -589,7 +663,7 @@ async function processProduct(req) {
                     }
                     await setOptionOfConfigProductAttribute(
                         color_attribute_id, color_attribute_label,
-                        option_value, printpronto_config_product_id
+                        option_value, printpronto_config_product_id, printpronto_config_product_sku
                     );
                     usedColorOptions.push({
                         label: option_value.label,
@@ -614,7 +688,7 @@ async function processProduct(req) {
                 console.log(`[DEBUG] Setting size option: ${option_value ? option_value.label : 'not found'} for size ${cleanedName}`);
                 await setOptionOfConfigProductAttribute(
                     size_attribute_id, size_attribute_label,
-                    option_value, printpronto_config_product_id
+                    option_value, printpronto_config_product_id, printpronto_config_product_sku
                 );
                 if (!option_value) {
                     console.error(`[DEBUG] Option for "${cleanedName}" was not found in preparedSizeOptions. Skipping this attribute option.`);
@@ -640,7 +714,7 @@ async function processProduct(req) {
                 }
                 await setOptionOfConfigProductAttribute(
                     material_attribute_id, material_attribute_label,
-                    option_value, printpronto_config_product_id
+                    option_value, printpronto_config_product_id, printpronto_config_product_sku
                 );
                 usedMaterialOptions.push({
                     label: option_value.label,
@@ -662,7 +736,7 @@ async function processProduct(req) {
                 }
                 await setOptionOfConfigProductAttribute(
                     shape_attribute_id, shape_attribute_label,
-                    option_value, printpronto_config_product_id
+                    option_value, printpronto_config_product_id, printpronto_config_product_sku
                 );
                 usedShapeOptions.push({
                     label: option_value.label,
@@ -692,19 +766,31 @@ async function processProduct(req) {
                 for (const shapeOption of safeShapeOptions) {
                     for (const colorOption of safeColorOptions) {
                         for (const materialOption of safeMaterialOptions) {
-                            const currentQuantityPrice = productQuantitiesPrice.find(q =>
+                            let currentQuantityPrice = productQuantitiesPrice.find(q =>
                                 q.quantity.toString() === qtyOption.label.toString()
                             )?.price || 0;
                             const combinationName = `${product.Name} Q:${qtyOption.label} S:${sizeOption.label} Sh:${shapeOption.label} C:${colorOption.label} M:${materialOption.label}`;
                             console.log(`[DEBUG] Creating product for combination: ${combinationName} with price: ${currentQuantityPrice}`);
                             console.log("Size Option Example:  ", sizeOption);
-                            const custom_attributes = [
-                                { attribute_code: size_attribute_label, value: sizeOption.value },
-                                { attribute_code: color_attribute_label, value: colorOption.value },
-                                { attribute_code: shape_attribute_label, value: shapeOption.value },
-                                { attribute_code: material_attribute_label, value: materialOption.value },
-                                { attribute_code: quantity_attribute_label, value: qtyOption.value }
-                            ];
+                            const custom_attributes = [];
+
+                            currentQuantityPrice = Number((Math.round(currentQuantityPrice * price_multiplier * Number(qtyOption.label) * 100) / 100).toFixed(2));
+
+                            if (sizeOption.value) {
+                                custom_attributes.push({ attribute_code: size_attribute_label, value: sizeOption.value });
+                            }
+                            if (colorOption.value) {
+                                custom_attributes.push({ attribute_code: color_attribute_label, value: colorOption.value });
+                            }
+                            if (shapeOption.value) {
+                                custom_attributes.push({ attribute_code: shape_attribute_label, value: shapeOption.value });
+                            }
+                            if (materialOption.value) {
+                                custom_attributes.push({ attribute_code: material_attribute_label, value: materialOption.value });
+                            }
+                            if (qtyOption.value) {
+                                custom_attributes.push({ attribute_code: quantity_attribute_label, value: qtyOption.value });
+                            }
                             console.log("[DEBUG] Custom attributes for combination:", custom_attributes);
                             const simpleProductSku = await createSimpleProduct(
                                 printpronto_config_product_id,
