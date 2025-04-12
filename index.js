@@ -5,9 +5,13 @@ const { fetchProduct,
     createSimpleProduct,
     assignSimpleProductToConfigurable,
     addNewSingleOptionToTheAttribute,
+    findAttributeOptions,
+    processProduct,
     cleanLabel
  } = require('./functions.js');
 const { v4: uuidv4 } = require('uuid');
+
+const serverless = require('serverless-http');
 
 const bodyParser = require('body-parser');
 
@@ -22,30 +26,11 @@ app.use(bodyParser.json());
 
 const PRINTPRONTO_API_BASE_URL = "https://printpronto.com/rest/default/V1";
 
-// Function to fetch attribute options
-async function findAttributeOptions(attribute_id) {
-    try {
-        const response = await fetch(`${PRINTPRONTO_API_BASE_URL}/products/attributes/${attribute_id}/options`, {
-            method: 'GET',
-            headers: {
-                "Authorization": `Bearer ${process.env.PRINTPRONTO_API_TOKEN}`
-            }
-        });
 
-        if (!response.ok) {
-            throw new Error(`Failed to fetch options for attribute ID ${attribute_id}: ${response.statusText}`);
-        }
+app.get('/', (req, res) => {
+    res.send('Hello from the serverless function!');
+});
 
-        const result = await response.json();
-
-        console.log(`[DEBUG] Fetched options for attribute ID ${attribute_id}:`, JSON.stringify(result));
-
-        return result;
-    } catch (error) {
-        console.error(`Error fetching options for attribute ID ${attribute_id}:`, error.message);
-        return { error: error.message };
-    }
-}
 
 // Route to handle attribute option requests
 app.post('/process-product', async (req, res) => {
@@ -54,7 +39,7 @@ app.post('/process-product', async (req, res) => {
 
     try {
         // Destructure the new payload keys from req.body
-        const {
+        let {
             color_attribute_id,
             color_attribute_label,
             size_attribute_id,
@@ -83,6 +68,19 @@ app.post('/process-product', async (req, res) => {
             price_multiplier,
             attribute_set_id
         });
+
+        material_attribute_id = "412";
+        material_attribute_label = "stickers_labels_material";
+        color_attribute_id = "666";
+        color_attribute_label = "stickers_and_labels_color";
+        shape_attribute_id = "416";
+        shape_attribute_label = "stickers_labels_shape";
+        size_attribute_id = "415";
+        size_attribute_label = "stickers_labels_size";
+        quantity_attribute_id = "413";
+        quantity_attribute_label = "stickers_labels_quantity";
+        attribute_set_id = 75;
+
 
         // Fetch the product using the provided esp_product_id
         console.log("[DEBUG] Fetching product with esp_product_id:", esp_product_id);
@@ -192,7 +190,7 @@ app.post('/process-product', async (req, res) => {
                 // Each value is expected to have a "Name" property
                 const optionName = option.Name;
                 console.log(`[DEBUG] Checking option "${optionName}" for attribute ${attrKey}`);
-                const optionExists = existingOptions.some(opt => opt.label.includes(optionName));
+                const optionExists = existingOptions.some(opt => opt.label === optionName);
                 console.log(`[DEBUG] Does option "${optionName}" exist?`, optionExists);
                 if (!optionExists) {
                     console.log(`[DEBUG] Option "${optionName}" not found. Adding new option.`);
@@ -236,11 +234,14 @@ app.post('/process-product', async (req, res) => {
         const preparedMaterialOptions = await findAttributeOptions(material_attribute_id);
         const preparedShapeOptions = await findAttributeOptions(shape_attribute_id);
         const preparedQuantityOptions = await findAttributeOptions(quantity_attribute_id);
+        
+        /*
         console.log("[DEBUG] Prepared size options:", preparedSizeOptions);
         console.log("[DEBUG] Prepared color options:", preparedColorOptions);
         console.log("[DEBUG] Prepared material options:", preparedMaterialOptions);
         console.log("[DEBUG] Prepared shape options:", preparedShapeOptions);
         console.log("[DEBUG] Prepared quantity options:", preparedQuantityOptions);
+        */
 
         const usedSizeOptions = [];
         const usedColorOptions = [];
@@ -302,8 +303,13 @@ app.post('/process-product', async (req, res) => {
         // Set size options if available
         if (product.Attributes.Sizes.Values) {
             console.log("[DEBUG] Setting size options for product configuration.");
+            
+            console.log("[DEBUG] Product Sizes Values:", product.Attributes.Sizes.Values);
+            console.log("[DEBUG] Prepared Size Options:", preparedSizeOptions);
+
             for (const obj of product.Attributes.Sizes.Values) {
-                const cleanedName = cleanLabel(obj.Name);
+                // const cleanedName = cleanLabel(obj.Name);
+                const cleanedName = obj.Name;
                 
                 const option_value = preparedSizeOptions.find(opt => opt.label.toString() === cleanedName);
                 console.log(`[DEBUG] Setting size option: ${option_value ? option_value.label : 'not found'} for size ${cleanedName}`);
@@ -387,13 +393,27 @@ app.post('/process-product', async (req, res) => {
             }
         }
 
+        console.log("[DEBUG] Final used options for each attribute type:");
+        console.log("[DEBUG] Used Size Options:", usedSizeOptions);
+        console.log("[DEBUG] Used Color Options:", usedColorOptions);
+        console.log("[DEBUG] Used Material Options:", usedMaterialOptions);
+        console.log("[DEBUG] Used Shape Options:", usedShapeOptions);
+        console.log("[DEBUG] Used Quantity Options:", usedQuantityOptions);
+
+        const safeQuantityOptions = usedQuantityOptions.length ? usedQuantityOptions : [{ label: '', value: '' }];
+        const safeSizeOptions = usedSizeOptions.length ? usedSizeOptions : [{ label: '', value: '' }];
+        const safeShapeOptions = usedShapeOptions.length ? usedShapeOptions : [{ label: '', value: '' }];
+        const safeColorOptions = usedColorOptions.length ? usedColorOptions : [{ label: '', value: '' }];
+        const safeMaterialOptions = usedMaterialOptions.length ? usedMaterialOptions : [{ label: '', value: '' }];
+
+
         // Create combinations of attribute options to form the configurable product
         console.log("[DEBUG] Starting to create simple products for every combination of options.");
-        for (const qtyOption of usedQuantityOptions) {
-            for (const sizeOption of usedSizeOptions) {
-                for (const shapeOption of usedShapeOptions) {
-                    for (const colorOption of usedColorOptions) {
-                        for (const materialOption of usedMaterialOptions) {
+        for (const qtyOption of safeQuantityOptions) {
+            for (const sizeOption of safeSizeOptions) {
+                for (const shapeOption of safeShapeOptions) {
+                    for (const colorOption of safeColorOptions) {
+                        for (const materialOption of safeMaterialOptions) {
                             const currentQuantityPrice = productQuantitiesPrice.find(q => q.quantity.toString() === qtyOption.label.toString())?.price || 0;
                             const combinationName = `${product.Name} Q:${qtyOption.label} S:${sizeOption.label} Sh:${shapeOption.label} C:${colorOption.label} M:${materialOption.label}`;
                             console.log(`[DEBUG] Creating product for combination: ${combinationName} with price: ${currentQuantityPrice}`);
@@ -442,6 +462,23 @@ app.post('/process-product', async (req, res) => {
     }
 });
 
+app.post('/process-product-new', (req, res) => {
+    console.log("[DEBUG] '/process-product-new' route triggered.");
+    console.log("[DEBUG] Request body received:", req.body);
+
+    // Fire off the background processing function without awaiting its result
+    processProduct(req);
+
+    // Immediately return the response to the client
+    res.json({
+        success: true,
+        message: 'Attribute options processing initiated in background.'
+    });
+});
+
 app.listen(PORT, () => {
     console.log(`Server is running on port ${PORT}`);
 });
+
+// Export the wrapped Express application
+module.exports = serverless(app);
