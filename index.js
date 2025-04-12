@@ -476,11 +476,9 @@ app.post('/process-product-new', (req, res) => {
     });
 });
 
-if (!process.env.VERCEL) {
-    app.listen(PORT, () => {
+app.listen(PORT, () => {
         console.log(`Server is running on port ${PORT}`);
-    });
-}
+});
 
 // Export the wrapped Express application
-module.exports = serverless(app);
+module.exports = app;
