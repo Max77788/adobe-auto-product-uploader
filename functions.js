@@ -358,7 +358,7 @@ async function addImageToProduct(imageUrl, productName, positionNumber, config_p
         const webpBuffer = Buffer.from(arrayBuffer);
         // console.log("Buffer created. Buffer size (bytes):", imageBuffer.length);
 
-        const jpgBuffer = await convertWebpBufferToJpg(webpBuffer);
+        const jpgBuffer = await convertAndUpscaleWebpToJpg(webpBuffer);
         
         // Convert the Buffer to a base64 string.
         const base64data = jpgBuffer.toString('base64');
