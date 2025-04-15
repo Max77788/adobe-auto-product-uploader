@@ -189,7 +189,7 @@ async function createSimpleProduct(config_product_id, config_product_name, attri
             custom_attributes,
             extension_attributes: {
                 stock_item: {
-                    qty: 100000,
+                    qty: 1000000,
                     is_in_stock: true
                 }
             }
@@ -307,8 +307,8 @@ async function convertAndUpscaleWebpToJpg(webpBuffer) {
     try {
         // Step 1: Get metadata to calculate new dimensions
         const metadata = await sharp(webpBuffer).metadata();
-        const newWidth = metadata.width * 5;
-        const newHeight = metadata.height * 5;
+        const newWidth = metadata.width * 3;
+        const newHeight = metadata.height * 3;
 
         // Step 2: Resize and convert to JPEG
         const jpgBuffer = await sharp(webpBuffer)
@@ -439,6 +439,25 @@ async function addImageToProduct(imageUrl, productName, positionNumber, config_p
         console.error("Error in addImageToProduct:", error);
         throw error;
     }
+}
+
+function replaceFractionsWithDecimals(input) {
+    // Regex explanation:
+    // - (\d+): Captures the whole number.
+    // - \s+ : Matches the space after the whole number.
+    // - (\d+)\/(\d+): Captures the numerator and denominator of the fraction.
+    // - (?="): Positive lookahead ensuring that the fraction is immediately
+    //         followed by a double quote.
+    // The 'g' flag allows this replacement to occur for all matches.
+    return input.replace(/(\d+)\s+(\d+)\/(\d+)(?=")/g, (match, whole, numerator, denominator) => {
+        const wholeNumber = parseInt(whole, 10);
+        const fraction = parseInt(numerator, 10) / parseInt(denominator, 10);
+        const decimalValue = wholeNumber + fraction;
+        // Round the result to 2 decimal places.
+        const rounded = Math.round(decimalValue * 100) / 100;
+        // Format as a string with exactly 2 decimals.
+        return rounded.toFixed(2);
+    });
 }
 
 async function processProduct(req) {
@@ -591,7 +610,8 @@ async function processProduct(req) {
             const additions = [];
 
             for (const option of data.productValues) {
-                const optionName = option.Name;
+                const optionName = replaceFractionsWithDecimals(option.Name);
+
                 console.log(`[DEBUG] Checking option "${optionName}" for attribute ${attrKey}`);
                 const optionExists = existingOptions.some(opt => opt.label === optionName);
                 console.log(`[DEBUG] Does option "${optionName}" exist?`, optionExists);
