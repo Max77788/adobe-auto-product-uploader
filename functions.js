@@ -442,14 +442,9 @@ async function addImageToProduct(imageUrl, productName, positionNumber, config_p
 }
 
 function replaceFractionsWithDecimals(input) {
-    // Regex explanation:
-    // - (\d+): Captures the whole number.
-    // - \s+ : Matches the space after the whole number.
-    // - (\d+)\/(\d+): Captures the numerator and denominator of the fraction.
-    // - (?="): Positive lookahead ensuring that the fraction is immediately
-    //         followed by a double quote.
-    // The 'g' flag allows this replacement to occur for all matches.
-    return input.replace(/(\d+)\s+(\d+)\/(\d+)(?=")/g, (match, whole, numerator, denominator) => {
+    // This regex matches a whole number followed by a fraction that is
+    // optionally followed by whitespace and either a double quote or the end of the string.
+    return input.replace(/(\d+)\s+(\d+)\/(\d+)(?=\s*("|$))/g, (match, whole, numerator, denominator) => {
         const wholeNumber = parseInt(whole, 10);
         const fraction = parseInt(numerator, 10) / parseInt(denominator, 10);
         const decimalValue = wholeNumber + fraction;
