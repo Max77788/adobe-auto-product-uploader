@@ -669,7 +669,7 @@ async function processProduct(req) {
                 option_value, printpronto_config_product_id, printpronto_config_product_sku, 5
             );
             usedQuantityOptions.push({
-                label: option_value.label,
+                label: replaceFractionsWithDecimals(option_value.label),
                 value: option_value.value
             });
             console.log(`[DEBUG] Set quantity option for ${obj.quantity}`);
@@ -708,9 +708,11 @@ async function processProduct(req) {
             console.log("[DEBUG] Product Sizes Values:", product.Attributes.Sizes.Values);
             console.log("[DEBUG] Prepared Size Options:", preparedSizeOptions);
             for (const obj of product.Attributes.Sizes.Values) {
-                const cleanedName = obj.Name;
+                const cleanedName = replaceFractionsWithDecimals(obj.Name);
+
                 const option_value = preparedSizeOptions.find(opt => opt.label.toString() === cleanedName);
                 console.log(`[DEBUG] Setting size option: ${option_value ? option_value.label : 'not found'} for size ${cleanedName}`);
+                
                 await setOptionOfConfigProductAttribute(
                     size_attribute_id, size_attribute_label,
                     option_value, printpronto_config_product_id, printpronto_config_product_sku
@@ -720,7 +722,7 @@ async function processProduct(req) {
                     continue;
                 }
                 usedSizeOptions.push({
-                    label: option_value.label,
+                    label: replaceFractionsWithDecimals(option_value.label),
                     value: option_value.value
                 });
                 console.log(`[DEBUG] Set size option for ${cleanedName}`);
