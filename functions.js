@@ -676,7 +676,7 @@ async function processProduct(req) {
         }
 
         // Set color options if available
-        if (product.Attributes.Colors.Values) {
+        if (product?.Attributes?.Colors?.Values) {
             console.log("[DEBUG] Setting color options for product configuration.");
             for (const obj of product.Attributes.Colors.Values) {
                 try {
@@ -703,7 +703,7 @@ async function processProduct(req) {
         }
 
         // Set size options if available
-        if (product.Attributes.Sizes.Values) {
+        if (product?.Attributes?.Sizes?.Values) {
             console.log("[DEBUG] Setting size options for product configuration.");
             console.log("[DEBUG] Product Sizes Values:", product.Attributes.Sizes.Values);
             console.log("[DEBUG] Prepared Size Options:", preparedSizeOptions);
@@ -730,7 +730,7 @@ async function processProduct(req) {
         }
 
         // Set material options if available
-        if (product.Attributes.Materials.Values) {
+        if (product?.Attributes?.Materials?.Values) {
             console.log("[DEBUG] Setting material options for product configuration.");
             for (const obj of product.Attributes.Materials.Values) {
                 const option_value = preparedMaterialOptions.find(opt => opt.label.toString() === obj.Name.toString());
@@ -752,7 +752,7 @@ async function processProduct(req) {
         }
 
         // Set shape options if available
-        if (product.Attributes.Shapes.Values) {
+        if (product?.Attributes?.Shapes?.Values) {
             console.log("[DEBUG] Setting shape options for product configuration.");
             for (const obj of product.Attributes.Shapes.Values) {
                 const option_value = preparedShapeOptions.find(opt => opt.label.toString() === obj.Name.toString());
