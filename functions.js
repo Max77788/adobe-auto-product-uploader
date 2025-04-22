@@ -429,6 +429,15 @@ async function addImageToProduct(imageUrl, productName, positionNumber, config_p
             body: JSON.stringify(payload)
         });
 
+        const response_au_post_image = await fetch(`${process.env.PRINTPRONTO_API_BASE_URL}/rest/au/V1/products/${config_product_sku}/media`, {
+            method: 'POST',
+            headers: {
+                "Authorization": `Bearer ${process.env.PRINTPRONTO_API_TOKEN}`,
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify(payload)
+        });
+
         const response_json = await response_post_image.json();
         
         console.log("Image upload response status:", response_json);
