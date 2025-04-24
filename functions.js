@@ -212,17 +212,17 @@ async function createSimpleProduct(config_product_id, config_product_name, attri
 }
 
 async function assignSimpleProductToConfigurable(child_product_sku, config_product_sku) {
-    console.log("Function called: assignSimpleProductToConfigurable");
-    console.log("Child Product SKU:", child_product_sku);
-    console.log("Configurable Product SKU:", config_product_sku);
+    // console.log("Function called: assignSimpleProductToConfigurable");
+    // console.log("Child Product SKU:", child_product_sku);
+    // console.log("Configurable Product SKU:", config_product_sku);
 
     const payload = {
         "childSku": child_product_sku,
     };
-    console.log("Payload constructed:", payload);
+    // console.log("Payload constructed:", payload);
 
     const url = `${process.env.PRINTPRONTO_API_BASE_URL}/rest/default/V1/configurable-products/${config_product_sku}/child`;
-    console.log("API URL:", url);
+    // console.log("API URL:", url);
 
     const headers = {
         "Authorization": `Bearer ${process.env.PRINTPRONTO_API_TOKEN}`,
@@ -239,12 +239,12 @@ async function assignSimpleProductToConfigurable(child_product_sku, config_produ
         });
 
         console.log("Response received");
-        console.log("Response status:", response.status);
-        console.log("Response status text:", response.statusText);
+        // console.log("Response status:", response.status);
+        // console.log("Response status text:", response.statusText);
 
         if (!response.ok) {
             const errorBody = await response.text();
-            console.error("Error response body:", errorBody);
+            // console.error("Error response body:", errorBody);
         } else {
             const data = await response.json();
             console.log("Success response data:", data);
@@ -429,6 +429,7 @@ async function addImageToProduct(imageUrl, productName, positionNumber, config_p
             body: JSON.stringify(payload)
         });
 
+        /*
         const response_au_post_image = await fetch(`${process.env.PRINTPRONTO_API_BASE_URL}/rest/au/V1/products/${config_product_sku}/media`, {
             method: 'POST',
             headers: {
@@ -437,6 +438,7 @@ async function addImageToProduct(imageUrl, productName, positionNumber, config_p
             },
             body: JSON.stringify(payload)
         });
+        */
 
         const response_json = await response_post_image.json();
         
@@ -805,9 +807,9 @@ async function processProduct(req) {
                             let currentQuantityPrice = productQuantitiesPrice.find(q =>
                                 q.quantity.toString() === qtyOption.label.toString()
                             )?.price || 0;
-                            const combinationName = `${product.Name} Q:${qtyOption.label} S:${sizeOption.label} Sh:${shapeOption.label} C:${colorOption.label} M:${materialOption.label}`;
+                            const combinationName = `${product.Name}--Q-${qtyOption.label}--S-${sizeOption.label}--Sh-${shapeOption.label}--C-${colorOption.label}--M-${materialOption.label}`;
                             console.log(`[DEBUG] Creating product for combination: ${combinationName} with price: ${currentQuantityPrice}`);
-                            console.log("Size Option Example:  ", sizeOption);
+                            // console.log("Size Option Example:  ", sizeOption);
                             const custom_attributes = [];
 
                             currentQuantityPrice = Number((Math.round(currentQuantityPrice * Number(qtyOption.label) * 100) / 100).toFixed(2));
@@ -827,7 +829,7 @@ async function processProduct(req) {
                             if (qtyOption.value) {
                                 custom_attributes.push({ attribute_code: quantity_attribute_label, value: qtyOption.value });
                             }
-                            console.log("[DEBUG] Custom attributes for combination:", custom_attributes);
+                            // console.log("[DEBUG] Custom attributes for combination:", custom_attributes);
                             const simpleProductSku = await createSimpleProduct(
                                 printpronto_config_product_id,
                                 combinationName,
