@@ -7,6 +7,50 @@ const sharp = require('sharp');
 // Replace 'yourProductIdHere' with the actual product ID.
 const productId = '550666600';
 
+// helper to pause execution
+const delay = ms => new Promise(res => setTimeout(res, ms));
+
+async function postWithRetry(url, headers, newOption, maxRetries = 3) {
+  let attempt = 0;
+  while (attempt < maxRetries) {
+    attempt++;
+    try {
+      console.log(`[DEBUG] Attempt ${attempt}: Sending POST request to Magento API...`);
+      const response = await fetch(url, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(newOption)
+      });
+
+      console.log(`[DEBUG] Attempt ${attempt}: Response received`);
+      console.log("  - Status:", response.status);
+      console.log("  - Status Text:", response.statusText);
+
+      if (!response.ok) {
+        const errorBody = await response.text();
+        console.error(`[ERROR] Attempt ${attempt}: Failed to set option. Response body:`, errorBody);
+        throw new Error(`Status ${response.status}`);
+      }
+
+      // success!
+      const data = await response.json();
+      console.log(`[SUCCESS] Attempt ${attempt}: Option set successfully. Response data:`, data);
+      return data;
+
+    } catch (err) {
+      console.error(`[EXCEPTION] Attempt ${attempt}: Error occurred:`, err);
+
+      if (attempt < maxRetries) {
+        console.log(`[DEBUG] Waiting 10 seconds before retrying (${attempt}/${maxRetries})...`);
+        await delay(10_000);
+      } else {
+        console.error(`[FATAL] All ${maxRetries} attempts failed. Giving up.`);
+        throw err;
+      }
+    }
+  }
+}
+
 const PRINTPRONTO_API_BASE_URL = "https://printpronto.com/rest/default/V1";
 
  async function fetchProduct(productId) {
@@ -97,8 +141,17 @@ const PRINTPRONTO_API_BASE_URL = "https://printpronto.com/rest/default/V1";
             label: option_name,
             is_default: false
         }
-    };
+     };
 
+    const URL = `${PRINTPRONTO_API_BASE_URL}/products/attributes/${attribute_id}/options`
+    const headers = {
+        "Authorization": `Bearer ${process.env.PRINTPRONTO_API_TOKEN}`,
+        "Content-Type": "application/json"
+    };
+    
+     const result = await postWithRetry(URL, headers, newOption, 3);
+
+    /*
     const response = await fetch(`${PRINTPRONTO_API_BASE_URL}/products/attributes/${attribute_id}/options`, {
         method: 'POST',
         headers: {
@@ -108,7 +161,9 @@ const PRINTPRONTO_API_BASE_URL = "https://printpronto.com/rest/default/V1";
         body: JSON.stringify(newOption)
     });
     const result = await response.json();
+    
     console.log(result);
+    */
     }
 
 
@@ -148,27 +203,12 @@ async function setOptionOfConfigProductAttribute(attribute_id, attribute_label, 
     };
     console.log("[DEBUG] Request headers:", headers);
 
+    // Usage
     try {
-        console.log("[DEBUG] Sending POST request to Magento API...");
-        const response = await fetch(url, {
-            method: 'POST',
-            headers: headers,
-            body: JSON.stringify(newOption)
-        });
-
-        console.log("[DEBUG] Response received");
-        console.log("  - Status:", response.status);
-        console.log("  - Status Text:", response.statusText);
-
-        if (!response.ok) {
-            const errorBody = await response.text();
-            console.error("[ERROR] Failed to set option. Response body:", errorBody);
-        } else {
-            const data = await response.json();
-            console.log("[SUCCESS] Option set successfully. Response data:", data);
-        }
-    } catch (error) {
-        console.error("[EXCEPTION] An error occurred while setting the option:", error);
+    const result = await postWithRetry(url, headers, newOption, 3);
+    // do something with result
+    } catch (finalErr) {
+    console.error("[FINAL ERROR] Could not set option after retries:", finalErr);
     }
 }
 
@@ -195,7 +235,13 @@ async function createSimpleProduct(config_product_id, config_product_name, attri
             }
         }
     };
+
+    const result = await postWithRetry(`${process.env.PRINTPRONTO_API_BASE_URL}/rest/default/V1/products`, {
+        "Authorization": `Bearer ${process.env.PRINTPRONTO_API_TOKEN}`,
+        "Content-Type": "application/json"
+    }, product, 3);
     
+    /*
     const response = await fetch(`${process.env.PRINTPRONTO_API_BASE_URL}/rest/default/V1/products`, {
         method: 'POST',
         headers: {
@@ -206,6 +252,7 @@ async function createSimpleProduct(config_product_id, config_product_name, attri
     });
 
     console.log("Response from creating simple product:", response.status, response.statusText);
+    */
     
     // Optionally, you might want to handle and return the response.
     return productSku;
@@ -230,6 +277,9 @@ async function assignSimpleProductToConfigurable(child_product_sku, config_produ
     };
     console.log("Request headers:", headers);
 
+    const result = await postWithRetry(url, headers, payload, 3);
+    
+    /*
     try {
         console.log("Sending POST request...");
         const response = await fetch(url, {
@@ -253,6 +303,7 @@ async function assignSimpleProductToConfigurable(child_product_sku, config_produ
     } catch (error) {
         console.error("Error while assigning simple product to configurable:", error);
     }
+    */
 }
 
 // Function to fetch attribute options
