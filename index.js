@@ -407,10 +407,12 @@ app.post('/process-product', async (req, res) => {
         const safeColorOptions = usedColorOptions.length ? usedColorOptions : [{ label: '', value: '' }];
         const safeMaterialOptions = usedMaterialOptions.length ? usedMaterialOptions : [{ label: '', value: '' }];
 
+        const numericQuantityOptions = safeQuantityOptions.filter(q => !isNaN(Number(q.label)));
+
 
         // Create combinations of attribute options to form the configurable product
         console.log("[DEBUG] Starting to create simple products for every combination of options.");
-        for (const qtyOption of safeQuantityOptions) {
+        for (const qtyOption of numericQuantityOptions) {
             for (const sizeOption of safeSizeOptions) {
                 for (const shapeOption of safeShapeOptions) {
                     for (const colorOption of safeColorOptions) {
