@@ -32,7 +32,73 @@ app.get('/', (req, res) => {
     res.send('Hello from the serverless function!');
 });
 
+app.post('/process-product-new', (req, res) => {
+    console.log("[DEBUG] '/process-product-new' route triggered.");
+    console.log("[DEBUG] Request body received:", req.body);
 
+    // Fire off the background processing function without awaiting its result
+    processProduct(req);
+
+    // Immediately return the response to the client
+    res.json({
+        success: true,
+        message: 'Attribute options processing initiated in background.'
+    });
+});
+
+app.post('/add-images', async (req, res) => {
+    // Destructure the new payload keys from req.body
+    let {
+        color_attribute_id,
+        color_attribute_label,
+        size_attribute_id,
+        size_attribute_label,
+        material_attribute_id,
+        material_attribute_label,
+        shape_attribute_id,
+        shape_attribute_label,
+        quantity_attribute_id,
+        quantity_attribute_label,
+        printpronto_config_product_id,
+        printpronto_config_product_sku,
+        esp_product_id,
+        price_multiplier,
+        attribute_set_id
+    } = req.body;
+
+    const product = await fetchProduct(esp_product_id);
+
+    // Add thumbnail picture to the product
+    if (product.ImageUrl) {
+        await addImageToProduct(product.ImageUrl, product.Name, 1, printpronto_config_product_sku, true)
+    }
+    // Add non-thumbnail picture to the product (if there are)
+    if (product.Images && product.Images.length > 1) {
+        console.log("[DEBUG] Adding additional images to the product.");
+
+        for (const [index, imageUrl] of product.Images.slice(1).entries()) {
+            await addImageToProduct(imageUrl, product.Name, index + 1, printpronto_config_product_sku, false)
+        }
+    }
+    console.log("[DEBUG] All images added to the product.");
+
+    // Immediately return the response to the client
+    res.json({
+        success: true,
+        message: 'Attribute options processing initiated in background.'
+    });
+});
+
+app.listen(PORT, () => {
+        console.log(`Server is running on port ${PORT}`);
+});
+
+// Export the wrapped Express application
+module.exports = app;
+
+
+
+/*
 // Route to handle attribute option requests
 app.post('/process-product', async (req, res) => {
     console.log("[DEBUG] '/process-product' route triggered.");
@@ -236,13 +302,13 @@ app.post('/process-product', async (req, res) => {
         const preparedShapeOptions = await findAttributeOptions(shape_attribute_id);
         const preparedQuantityOptions = await findAttributeOptions(quantity_attribute_id);
         
-        /*
+        
         console.log("[DEBUG] Prepared size options:", preparedSizeOptions);
         console.log("[DEBUG] Prepared color options:", preparedColorOptions);
         console.log("[DEBUG] Prepared material options:", preparedMaterialOptions);
         console.log("[DEBUG] Prepared shape options:", preparedShapeOptions);
         console.log("[DEBUG] Prepared quantity options:", preparedQuantityOptions);
-        */
+        
 
         const usedSizeOptions = [];
         const usedColorOptions = [];
@@ -464,67 +530,4 @@ app.post('/process-product', async (req, res) => {
         res.status(500).json({ error: error.message });
     }
 });
-
-app.post('/process-product-new', (req, res) => {
-    console.log("[DEBUG] '/process-product-new' route triggered.");
-    console.log("[DEBUG] Request body received:", req.body);
-
-    // Fire off the background processing function without awaiting its result
-    processProduct(req);
-
-    // Immediately return the response to the client
-    res.json({
-        success: true,
-        message: 'Attribute options processing initiated in background.'
-    });
-});
-
-app.post('/add-images', async (req, res) => {
-    // Destructure the new payload keys from req.body
-    let {
-        color_attribute_id,
-        color_attribute_label,
-        size_attribute_id,
-        size_attribute_label,
-        material_attribute_id,
-        material_attribute_label,
-        shape_attribute_id,
-        shape_attribute_label,
-        quantity_attribute_id,
-        quantity_attribute_label,
-        printpronto_config_product_id,
-        printpronto_config_product_sku,
-        esp_product_id,
-        price_multiplier,
-        attribute_set_id
-    } = req.body;
-
-    const product = await fetchProduct(esp_product_id);
-
-    // Add thumbnail picture to the product
-    if (product.ImageUrl) {
-        await addImageToProduct(product.ImageUrl, product.Name, 1, printpronto_config_product_sku, true)
-    }
-    // Add non-thumbnail picture to the product (if there are)
-    if (product.Images && product.Images.length > 1) {
-        console.log("[DEBUG] Adding additional images to the product.");
-
-        for (const [index, imageUrl] of product.Images.slice(1).entries()) {
-            await addImageToProduct(imageUrl, product.Name, index + 1, printpronto_config_product_sku, false)
-        }
-    }
-    console.log("[DEBUG] All images added to the product.");
-
-    // Immediately return the response to the client
-    res.json({
-        success: true,
-        message: 'Attribute options processing initiated in background.'
-    });
-});
-
-app.listen(PORT, () => {
-        console.log(`Server is running on port ${PORT}`);
-});
-
-// Export the wrapped Express application
-module.exports = app;
+*/
